@@ -1,11 +1,12 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { ChatMessage } from "../types";
 
-// Helper to get the AI client with the current key safely
+// Создаем экземпляр AI непосредственно перед вызовом, чтобы избежать проблем с обновлением ключа
 const getAIClient = () => {
-  const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : null;
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API Key не найден. Пожалуйста, выберите ключ.");
+    throw new Error("API_KEY_NOT_FOUND");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -32,26 +33,32 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
   const base64Audio = await blobToBase64(audioBlob);
   const mimeType = audioBlob.type || 'audio/webm';
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: [
-      {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Audio,
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-preview-09-2025',
+      contents: [
+        {
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: base64Audio,
+              },
             },
-          },
-          {
-            text: "Transcribe the following audio accurately in Russian. Return ONLY the transcribed text, without any additional commentary.",
-          },
-        ],
-      }
-    ],
-  });
-
-  return response.text || "";
+            {
+              text: "Transcribe the following audio accurately in Russian. Return ONLY the transcribed text.",
+            },
+          ],
+        }
+      ],
+    });
+    return response.text || "";
+  } catch (error: any) {
+    if (error.message?.includes("Requested entity was not found")) {
+      throw new Error("API_KEY_INVALID");
+    }
+    throw error;
+  }
 };
 
 export const sendDirectMessage = async (
@@ -60,25 +67,25 @@ export const sendDirectMessage = async (
 ): Promise<string> => {
   const ai = getAIClient();
   
-  const chat = ai.chats.create({
-    model: 'gemini-3-pro-preview',
-    config: {
-      systemInstruction: `Вы — мудрый толкователь снов, вдохновленный учениями Джона Пола Джексона и библейской символикой.
-      
-      ВАША ЗАДАЧА:
-      1. Выслушать сон пользователя или его вопрос о символах.
-      2. Дать глубокое, проницательное толкование, основанное на архетипах (цвета, числа, действия, объекты).
-      3. Искать духовный смысл: предупреждения, призвание, исцеление, направление.
-      4. Быть эмпатичным, таинственным, но ясным. Не просто перечисляйте символы, а связывайте их в историю.
-      
-      Всегда отвечайте на РУССКОМ языке.`,
-    },
-    history: history.map(h => ({
-      role: h.role,
-      parts: [{ text: h.text }]
-    }))
-  });
+  try {
+    const chat = ai.chats.create({
+      model: 'gemini-3-pro-preview',
+      config: {
+        systemInstruction: `Вы — мудрый толкователь снов, вдохновленный учениями Джона Пола Джексона и библейской символикой.
+        Отвечайте на РУССКОМ языке. Будьте проницательны.`,
+      },
+      history: history.map(h => ({
+        role: h.role,
+        parts: [{ text: h.text }]
+      }))
+    });
 
-  const result = await chat.sendMessage({ message: newMessage });
-  return result.text || "Я слушаю...";
+    const result = await chat.sendMessage({ message: newMessage });
+    return result.text || "Я слушаю...";
+  } catch (error: any) {
+    if (error.message?.includes("Requested entity was not found")) {
+      throw new Error("API_KEY_INVALID");
+    }
+    throw error;
+  }
 };
