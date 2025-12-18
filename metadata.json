@@ -1,0 +1,7 @@
+{
+  "name": "Prophetic Dream Journal 2",
+  "description": "A multi-modal dream journal that transcribes, illustrates, and interprets dreams using recognized psychological and biblical archetypes.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
